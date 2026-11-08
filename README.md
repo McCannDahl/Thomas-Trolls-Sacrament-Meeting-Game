@@ -46,6 +46,8 @@ A delightful, toddler-friendly mobile game designed to keep a 3-year-old engaged
 
 ## 🚀 Running the App
 
+### Mobile / Desktop Development
+
 ```bash
 # Run unit and widget tests
 flutter test
@@ -56,3 +58,36 @@ dart analyze
 # Run on an attached device or simulator
 flutter run
 ```
+
+### 🌐 Web Hosting (Home Server / Nomrom Gateway)
+
+Build the web application configured for the `/thomas/` subpath and serve it locally:
+
+```bash
+# Build and serve (Node.js)
+npm start
+
+# Or build manually with Flutter CLI
+flutter build web --base-href /thomas/
+
+# Serve with Node.js server (port 8088 default, configurable via PORT env var)
+npm run serve
+
+# Or serve with pure Dart server (zero dependencies)
+npm run serve:dart
+```
+
+### 🪟 Windows Startup Script
+
+To automatically build and serve the game on Windows boot:
+
+1. Copy or create a shortcut to `start-thomas.bat` in your Windows Startup folder (`shell:startup`):
+   ```bat
+   @echo off
+
+   "C:\Program Files\Git\bin\bash.exe" -i -c "cd ~/Documents/GitHub/Thomas-Trolls-Sacrament-Meeting-Game && exec npm start"
+
+   pause
+   ```
+2. When triggered, the script navigates to the repository, runs `npm start` (which builds Flutter web with `--base-href /thomas/` and starts the server on port `8088`), and remains active.
+3. Traffic through Nomrom Gateway (`local.dahl-fam.com/thomas`) is proxied to `http://host.docker.internal:8088/`.

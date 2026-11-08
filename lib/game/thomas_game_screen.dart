@@ -233,7 +233,7 @@ class _ThomasGameScreenState extends State<ThomasGameScreen>
                           ),
                           const SizedBox(height: 6),
                           const Text(
-                            'All 10 Trolls arrived safely! (3 in each cart & 1 with Thomas! 🚂)',
+                            'All 10 Trolls arrived safely!',
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 14,

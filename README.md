@@ -64,11 +64,18 @@ flutter run
 Build the web application configured for the `/thomas/` subpath and serve it locally:
 
 ```bash
-# Build and serve (Node.js)
+# Build and serve (Node.js) - automatically disables Git Bash path conversion
 npm start
+
+# Or build web bundle only
+npm run build
 
 # Or build manually with Flutter CLI
 flutter build web --base-href /thomas/
+# Note for Git Bash users: If running flutter directly in Git Bash, Git Bash converts '/thomas/' to a Windows path.
+# Set MSYS_NO_PATHCONV=1 first:
+#   MSYS_NO_PATHCONV=1 flutter build web --base-href /thomas/
+# Or simply use "npm run build".
 
 # Serve with Node.js server (port 8088 default, configurable via PORT env var)
 npm run serve
@@ -84,10 +91,12 @@ To automatically build and serve the game on Windows boot:
 1. Copy or create a shortcut to `start-thomas.bat` in your Windows Startup folder (`shell:startup`):
    ```bat
    @echo off
+   set MSYS_NO_PATHCONV=1
+   set MSYS2_ARG_CONV_EXCL=*
 
-   "C:\Program Files\Git\bin\bash.exe" -i -c "cd ~/Documents/GitHub/Thomas-Trolls-Sacrament-Meeting-Game && exec npm start"
+   "C:\Program Files\Git\bin\bash.exe" -i -c "export MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*'; cd ~/Documents/GitHub/Thomas-Trolls-Sacrament-Meeting-Game && exec npm start"
 
    pause
    ```
-2. When triggered, the script navigates to the repository, runs `npm start` (which builds Flutter web with `--base-href /thomas/` and starts the server on port `8088`), and remains active.
+2. When triggered, the script navigates to the repository, runs `npm start` (which builds Flutter web with `--base-href /thomas/` via `scripts/build-web.js` and starts the server on port `8088`), and remains active.
 3. Traffic through Nomrom Gateway (`local.dahl-fam.com/thomas`) is proxied to `http://host.docker.internal:8088/`.

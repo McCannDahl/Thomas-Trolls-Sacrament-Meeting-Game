@@ -674,11 +674,14 @@ class GameWorldPainter extends CustomPainter {
   }
 
   void _drawTrolls(Canvas canvas) {
+    // Uncollected floating trolls
     for (final troll in controller.trolls) {
-      if (troll.isCollected) {
+      _drawStandingTroll(canvas, troll);
+    }
+    // Hopping collected trolls in mid-air
+    for (final troll in controller.collectedTrolls) {
+      if (troll.collectionProgress < 1.0) {
         _drawCollectedTrollHop(canvas, troll);
-      } else {
-        _drawStandingTroll(canvas, troll);
       }
     }
   }
@@ -966,14 +969,15 @@ class GameWorldPainter extends CustomPainter {
 
         // Find if the troll for this cart and window is collected
         final trollOrder = c * 3 + w;
-        final seatedTroll = controller.trolls.cast<TrollData?>().firstWhere(
-          (t) => t != null && t.isCollected && t.collectedOrder == trollOrder && t.collectionProgress >= 1.0,
+        final seatedTroll = controller.collectedTrolls.cast<TrollData?>().firstWhere(
+          (t) => t != null && t.collectedOrder == trollOrder && t.collectionProgress >= 1.0,
           orElse: () => null,
         );
 
         if (seatedTroll != null) {
           canvas.save();
-          canvas.translate(winX, -coachHeight / 2 - 1);
+          final winBounce = math.sin(seatedTroll.bouncePhase) * 1.2;
+          canvas.translate(winX, -coachHeight / 2 - 1 + winBounce);
           _drawTrollFigure(canvas, seatedTroll, scale: 0.38);
           canvas.restore();
         }
@@ -1052,13 +1056,14 @@ class GameWorldPainter extends CustomPainter {
     canvas.drawRRect(cabWindowRect, windowFrame);
 
     // Troll 10 in the driver's window!
-    final driverTroll = controller.trolls.cast<TrollData?>().firstWhere(
-      (t) => t != null && t.isCollected && t.collectedOrder == 9 && t.collectionProgress >= 1.0,
+    final driverTroll = controller.collectedTrolls.cast<TrollData?>().firstWhere(
+      (t) => t != null && t.collectedOrder == 9 && t.collectionProgress >= 1.0,
       orElse: () => null,
     );
     if (driverTroll != null) {
       canvas.save();
-      canvas.translate(-22, -22);
+      final winBounce = math.sin(driverTroll.bouncePhase) * 1.2;
+      canvas.translate(-22, -22 + winBounce);
       _drawTrollFigure(canvas, driverTroll, scale: 0.42);
       canvas.restore();
     }

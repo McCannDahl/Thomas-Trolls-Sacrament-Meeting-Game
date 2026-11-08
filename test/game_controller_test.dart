@@ -86,7 +86,45 @@ void main() {
 
       expect(matchingTroll.isCollected, isTrue);
       expect(controller.collectedTrollsCount, equals(1));
+      expect(controller.collectedTrolls, isNotEmpty);
       expect(controller.sparkleParticles, isNotEmpty);
+    });
+
+    test('collected trolls remain permanently in collectedTrolls and never disappear while driving', () {
+      final controller = GameController();
+      controller.initialize(800, 400);
+
+      final trackY = controller.track.getHeightAt(controller.trainX);
+
+      final troll = TrollData(
+        x: controller.trainX + 15.0,
+        y: trackY,
+        type: TrollType.poppy,
+      );
+      controller.trolls.clear();
+      controller.trolls.add(troll);
+
+      controller.onPointerDown(const Offset(400, 200));
+      controller.update(0.1);
+
+      expect(controller.collectedTrolls.length, equals(1));
+      expect(controller.collectedTrolls.first.isCollected, isTrue);
+
+      // Complete hop animation
+      for (int i = 0; i < 20; i++) {
+        controller.update(0.05);
+      }
+      expect(controller.collectedTrolls.first.collectionProgress, equals(1.0));
+
+      // Drive for 15 seconds (300 frames) scrolling thousands of pixels
+      for (int i = 0; i < 300; i++) {
+        controller.update(0.05);
+      }
+
+      // Troll is permanently in collectedTrolls and does not disappear!
+      expect(controller.collectedTrolls.any((t) => t == troll), isTrue);
+      expect(troll.collectionProgress, equals(1.0));
+      expect(troll.collectedOrder, equals(0));
     });
 
     test('misses troll when vertical height does not match track height (no penalty)', () {

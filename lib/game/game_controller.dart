@@ -8,6 +8,7 @@ import 'models/troll_data.dart';
 class GameController extends ChangeNotifier {
   final TrackData track = TrackData();
   final List<TrollData> trolls = [];
+  final List<TrollData> collectedTrolls = [];
   final List<SmokeParticle> smokeParticles = [];
   final List<SparkleParticle> sparkleParticles = [];
   final List<ConfettiParticle> confettiParticles = [];
@@ -73,6 +74,7 @@ class GameController extends ChangeNotifier {
     track.initialize(screenWidth: width, initialY: initialY);
 
     trolls.clear();
+    collectedTrolls.clear();
     smokeParticles.clear();
     sparkleParticles.clear();
     confettiParticles.clear();
@@ -178,7 +180,7 @@ class GameController extends ChangeNotifier {
       touchY: touchPosition?.dy,
     );
 
-    // 4. Update trolls
+    // 4. Update incoming uncollected trolls
     final double trainY = track.getHeightAt(trainX);
 
     for (int i = trolls.length - 1; i >= 0; i--) {
@@ -186,33 +188,43 @@ class GameController extends ChangeNotifier {
       troll.update(clampedDt, dx);
 
       // Check collision with Thomas
-      if (!troll.isCollected) {
-        final double trainFront = trainX + 35.0;
-        final double trainBack = trainX - 35.0;
+      final double trainFront = trainX + 35.0;
+      final double trainBack = trainX - 35.0;
 
-        // Troll reached the train horizontally
-        if (troll.x <= trainFront && troll.x >= trainBack) {
-          // Check vertical alignment: train track height vs troll height
-          final double vertDiff = (trainY - troll.y).abs();
-          if (vertDiff <= 44.0) {
-            // Picked up!
-            troll.isCollected = true;
-            troll.collectedOrder = collectedTrollsCount;
-            collectedTrollsCount++;
+      if (troll.x <= trainFront && troll.x >= trainBack) {
+        final double vertDiff = (trainY - troll.y).abs();
+        if (vertDiff <= 44.0) {
+          // Picked up!
+          troll.isCollected = true;
+          troll.collectedOrder = collectedTrollsCount;
+          collectedTrollsCount++;
 
-            // Burst of celebration sparkles!
-            _spawnSparkles(troll.x, troll.y, troll.hairColor);
+          // Move permanently to collectedTrolls so it is never culled!
+          collectedTrolls.add(troll);
+          trolls.removeAt(i);
 
-            if (collectedTrollsCount >= totalTrollsToWin) {
-              _triggerVictory();
-            }
+          // Burst of celebration sparkles!
+          _spawnSparkles(troll.x, troll.y, troll.hairColor);
+
+          if (collectedTrollsCount >= totalTrollsToWin) {
+            _triggerVictory();
           }
+          continue;
         }
       }
 
-      // Cull off-screen trolls
+      // Cull off-screen uncollected trolls
       if (troll.x < -220.0) {
         trolls.removeAt(i);
+      }
+    }
+
+    // Update collected trolls (hop animation progress and idle window bounce)
+    for (final troll in collectedTrolls) {
+      if (troll.collectionProgress < 1.0) {
+        troll.update(clampedDt, dx);
+      } else {
+        troll.bouncePhase += clampedDt * 5.0;
       }
     }
 

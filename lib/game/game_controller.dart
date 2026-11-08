@@ -32,10 +32,12 @@ class GameController extends ChangeNotifier {
 
   double _smokeTimer = 0.0;
   double _confettiTimer = 0.0;
-  double _nextTrollSpawnX = 600.0;
+  double _trollSpawnTimer = 0.0;
+  int _lastHeightTier = 1;
   final math.Random _random = math.Random();
 
   int collectedTrollsCount = 0;
+  int totalTrollsSpawned = 0;
   bool isInitialized = false;
 
   // Troll Village & Win State
@@ -76,23 +78,33 @@ class GameController extends ChangeNotifier {
     confettiParticles.clear();
 
     collectedTrollsCount = 0;
+    totalTrollsSpawned = 2;
     hasWon = false;
     villageStationReached = false;
     villageX = null;
     trainSpeed = 0.0;
     totalDistance = 0.0;
     wheelAngle = 0.0;
+    _trollSpawnTimer = 0.0;
+    _lastHeightTier = 1;
 
     // Spawn first troll ahead at a fun reachable height
-    _nextTrollSpawnX = width * 0.75;
     trolls.add(
       TrollData(
-        x: _nextTrollSpawnX,
-        y: initialY - 30.0,
+        x: width * 0.70,
+        y: initialY - 35.0,
         type: TrollType.poppy,
       ),
     );
-    _nextTrollSpawnX += 520.0;
+
+    // Spawn second troll entering right after
+    trolls.add(
+      TrollData(
+        x: width + 150.0,
+        y: initialY - 110.0,
+        type: TrollType.branch,
+      ),
+    );
 
     isInitialized = true;
     notifyListeners();
@@ -204,24 +216,15 @@ class GameController extends ChangeNotifier {
       }
     }
 
-    // 5. Spawn new trolls at diverse vertical heights until 10 collected
-    if (!hasWon && collectedTrollsCount < totalTrollsToWin && track.endX > _nextTrollSpawnX) {
-      final types = TrollType.values;
-      final type = types[_random.nextInt(types.length)];
-
-      // Pick a diverse height (sky, high hill, mid hill, low valley)
-      final minY = 115.0;
-      final maxY = screenHeight - 75.0;
-      final spawnY = minY + _random.nextDouble() * (maxY - minY);
-
-      trolls.add(
-        TrollData(
-          x: _nextTrollSpawnX,
-          y: spawnY,
-          type: type,
-        ),
-      );
-      _nextTrollSpawnX = track.endX + 460.0 + _random.nextDouble() * 320.0;
+    // 5. Spawn new trolls periodically every ~2.0 seconds while moving until 10 collected
+    if (!hasWon && collectedTrollsCount < totalTrollsToWin) {
+      if (trainSpeed > 20.0) {
+        _trollSpawnTimer += clampedDt;
+        if (_trollSpawnTimer >= 2.0) {
+          _trollSpawnTimer = 0.0;
+          _spawnNewTroll(screenWidth + 70.0);
+        }
+      }
     }
 
     // 6. Spawn smoke puffs from chimney
@@ -254,6 +257,44 @@ class GameController extends ChangeNotifier {
   void _triggerVictory() {
     hasWon = true;
     villageX = screenWidth + 250.0;
+  }
+
+  void _spawnNewTroll(double spawnX) {
+    totalTrollsSpawned++;
+    final types = TrollType.values;
+    final type = types[_random.nextInt(types.length)];
+
+    // Pick a different height tier from previous troll for variety
+    int tier = _random.nextInt(4);
+    if (tier == _lastHeightTier) {
+      tier = (tier + 1 + _random.nextInt(3)) % 4;
+    }
+    _lastHeightTier = tier;
+
+    double spawnY;
+    switch (tier) {
+      case 0:
+        spawnY = 125.0 + _random.nextDouble() * 30.0; // High mountain
+        break;
+      case 1:
+        spawnY = 165.0 + _random.nextDouble() * 30.0; // Upper hill
+        break;
+      case 2:
+        spawnY = 210.0 + _random.nextDouble() * 30.0; // Mid hill
+        break;
+      case 3:
+      default:
+        spawnY = math.min(screenHeight - 75.0, 260.0 + _random.nextDouble() * 30.0); // Valley
+        break;
+    }
+
+    trolls.add(
+      TrollData(
+        x: spawnX,
+        y: spawnY,
+        type: type,
+      ),
+    );
   }
 
   void _spawnSmokePuff() {

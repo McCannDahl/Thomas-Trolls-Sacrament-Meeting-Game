@@ -146,6 +146,24 @@ void main() {
       expect(controller.confettiParticles, isNotEmpty);
     });
 
+    test('spawns new trolls periodically every couple of seconds while driving', () {
+      final controller = GameController();
+      controller.initialize(800, 400);
+
+      expect(controller.totalTrollsSpawned, equals(2));
+
+      controller.onPointerDown(const Offset(400, 200));
+
+      // Drive for 7 seconds (140 frames of 0.05s)
+      for (int i = 0; i < 140; i++) {
+        controller.update(0.05);
+      }
+
+      // Verifies that multiple new trolls continue spawning periodically while driving
+      expect(controller.totalTrollsSpawned, greaterThan(2));
+      expect(controller.trolls, isNotEmpty);
+    });
+
     test('parallax offsets increase monotonically and smoothly without wrapping discontinuities', () {
       final controller = GameController();
       controller.initialize(800, 400);

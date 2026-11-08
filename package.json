@@ -1,0 +1,13 @@
+{
+  "name": "thomas-trolls",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Thomas Trolls Sacrament Meeting Game web host",
+  "scripts": {
+    "build": "flutter build web --base-href /thomas/",
+    "prestart": "npm run build",
+    "start": "node server.js",
+    "serve": "node server.js",
+    "serve:dart": "dart run bin/server.dart"
+  }
+}

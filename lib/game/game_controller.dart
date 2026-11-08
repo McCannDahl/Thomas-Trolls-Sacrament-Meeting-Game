@@ -105,12 +105,12 @@ class GameController extends ChangeNotifier {
       wheelAngle = (wheelAngle + dx / wheelRadius) % (2 * math.pi);
       totalDistance += dx;
 
-      parallaxMountains = (parallaxMountains + dx * 0.08) % 3000.0;
-      parallaxHills = (parallaxHills + dx * 0.25) % 3000.0;
+      parallaxMountains += dx * 0.08;
+      parallaxHills += dx * 0.25;
     }
 
     // Clouds drift slowly on their own + with motion
-    parallaxClouds = (parallaxClouds + 15.0 * clampedDt + dx * 0.04) % 3000.0;
+    parallaxClouds += 15.0 * clampedDt + dx * 0.04;
 
     // 3. Update track geometry
     track.update(

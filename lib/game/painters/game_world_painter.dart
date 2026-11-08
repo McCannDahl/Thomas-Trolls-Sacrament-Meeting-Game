@@ -129,9 +129,15 @@ class GameWorldPainter extends CustomPainter {
     ];
 
     const loopWidth = 1800.0;
+    final double scroll = controller.parallaxClouds % loopWidth;
     for (final c in clouds) {
-      final rawX = (c['baseX']! - controller.parallaxClouds) % loopWidth;
-      final x = rawX < -150 ? rawX + loopWidth : rawX;
+      double x = (c['baseX']! - scroll);
+      while (x < -200.0) {
+        x += loopWidth;
+      }
+      while (x > loopWidth - 200.0 && x > width + 100.0) {
+        x -= loopWidth;
+      }
       final y = c['y']!;
       final s = c['scale']!;
 
@@ -172,37 +178,42 @@ class GameWorldPainter extends CustomPainter {
     final mountainPaint = Paint()..color = const Color(0xFF90A4AE).withValues(alpha: 0.65);
     final snowPaint = Paint()..color = Colors.white.withValues(alpha: 0.85);
 
+    const mountainSpacing = 280.0;
+    final double scroll = controller.parallaxMountains;
+    final int startIdx = ((scroll - 300.0) / mountainSpacing).floor();
+    final int endIdx = ((scroll + width + 300.0) / mountainSpacing).ceil();
+
     final path = Path();
     final snowPath = Path();
 
-    path.moveTo(-50, height);
+    path.moveTo(-100, height);
 
-    const mountainSpacing = 280.0;
-    const totalSpan = 3000.0;
-    final double offset = controller.parallaxMountains % totalSpan;
+    for (int i = startIdx; i <= endIdx; i++) {
+      final leftX = i * mountainSpacing - scroll;
+      final peakX = leftX + mountainSpacing * 0.5;
+      final rightX = leftX + mountainSpacing;
 
-    double x = -100.0 - (offset % mountainSpacing);
-    while (x < width + 200.0) {
-      final peakX = x + mountainSpacing * 0.5;
-      final peakY = height * 0.38 + ((x.toInt() % 7) * 12.0);
+      // Deterministic height based on mountain index i (never jitters during scrolling)
+      final hSeed = math.sin(i * 17.13) * 0.5 + 0.5;
+      final peakY = height * 0.32 + hSeed * 50.0;
 
-      path.lineTo(x, height * 0.75);
+      if (i == startIdx) {
+        path.lineTo(leftX, height * 0.78);
+      }
       path.lineTo(peakX, peakY);
-      path.lineTo(x + mountainSpacing, height * 0.75);
+      path.lineTo(rightX, height * 0.78);
 
-      // Snow cap
+      // Snow cap at peak
       snowPath.moveTo(peakX, peakY);
-      snowPath.lineTo(peakX - 26, peakY + 36);
-      snowPath.lineTo(peakX - 10, peakY + 32);
-      snowPath.lineTo(peakX, peakY + 38);
-      snowPath.lineTo(peakX + 12, peakY + 30);
-      snowPath.lineTo(peakX + 26, peakY + 36);
+      snowPath.lineTo(peakX - 28, peakY + 38);
+      snowPath.lineTo(peakX - 10, peakY + 34);
+      snowPath.lineTo(peakX, peakY + 40);
+      snowPath.lineTo(peakX + 12, peakY + 32);
+      snowPath.lineTo(peakX + 28, peakY + 38);
       snowPath.close();
-
-      x += mountainSpacing;
     }
 
-    path.lineTo(width + 50, height);
+    path.lineTo(width + 100, height);
     path.close();
 
     canvas.drawPath(path, mountainPaint);
@@ -211,36 +222,56 @@ class GameWorldPainter extends CustomPainter {
 
   void _drawMidgroundHills(Canvas canvas, double width, double height) {
     final hillPaint = Paint()..color = const Color(0xFF81C784).withValues(alpha: 0.75);
+
+    const hillSpacing = 180.0;
+    final double scroll = controller.parallaxHills;
+    final int startIdx = ((scroll - 250.0) / hillSpacing).floor();
+    final int endIdx = ((scroll + width + 250.0) / hillSpacing).ceil();
+
     final hillPath = Path();
+    hillPath.moveTo(-100, height);
 
-    hillPath.moveTo(-50, height);
+    final List<_TreeData> treesToDraw = [];
 
-    const hillSpacing = 200.0;
-    const totalSpan = 3000.0;
-    final double offset = controller.parallaxHills % totalSpan;
+    for (int j = startIdx; j <= endIdx; j++) {
+      final leftX = j * hillSpacing - scroll;
+      final crestX = leftX + hillSpacing * 0.5;
+      final rightX = leftX + hillSpacing;
 
-    double x = -100.0 - (offset % hillSpacing);
-    while (x < width + 250.0) {
-      final crestX = x + hillSpacing * 0.5;
-      final crestY = height * 0.55 + ((x.toInt() % 5) * 16.0);
+      // Deterministic hill height based on hill index j
+      final hSeed = math.sin(j * 9.71) * 0.5 + 0.5;
+      final crestY = height * 0.52 + hSeed * 30.0;
+      final baselineY = height * 0.68;
 
-      hillPath.quadraticBezierTo(crestX, crestY, x + hillSpacing, height * 0.68);
-
-      // Draw cute lollipop trees on hill crest
-      if ((crestX.toInt() % 3) == 0) {
-        _drawCartoonTree(canvas, Offset(crestX, crestY + 6), 0.85);
+      if (j == startIdx) {
+        hillPath.lineTo(leftX, baselineY);
       }
+      hillPath.quadraticBezierTo(crestX, crestY, rightX, baselineY);
 
-      x += hillSpacing;
+      // Stable tree placement: hill j has a tree if j is even (never flashes or disappears)
+      if (j % 2 == 0) {
+        final treeColorIdx = (j.abs() ~/ 2) % 3;
+        treesToDraw.add(
+          _TreeData(
+            position: Offset(crestX, crestY + 4),
+            colorIndex: treeColorIdx,
+          ),
+        );
+      }
     }
 
-    hillPath.lineTo(width + 50, height);
+    hillPath.lineTo(width + 100, height);
     hillPath.close();
 
     canvas.drawPath(hillPath, hillPaint);
+
+    // Draw cartoon trees on the hill crests
+    for (final tree in treesToDraw) {
+      _drawCartoonTree(canvas, tree.position, 0.85, tree.colorIndex);
+    }
   }
 
-  void _drawCartoonTree(Canvas canvas, Offset base, double scale) {
+  void _drawCartoonTree(Canvas canvas, Offset base, double scale, int colorIndex) {
     // Trunk
     final trunkPaint = Paint()
       ..color = const Color(0xFF795548)
@@ -248,13 +279,13 @@ class GameWorldPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round;
     canvas.drawLine(base, base + Offset(0, -22 * scale), trunkPaint);
 
-    // Leaves
-    final foliageColors = [
-      const Color(0xFF43A047),
-      const Color(0xFF66BB6A),
-      const Color(0xFF2E7D32),
+    // Foliage with stable color index
+    const foliageColors = [
+      Color(0xFF43A047),
+      Color(0xFF66BB6A),
+      Color(0xFF2E7D32),
     ];
-    final color = foliageColors[(base.dx.toInt() ~/ 50) % foliageColors.length];
+    final color = foliageColors[colorIndex % foliageColors.length];
     final leafPaint = Paint()..color = color;
 
     canvas.drawCircle(base + Offset(0, -28 * scale), 14 * scale, leafPaint);
@@ -269,7 +300,7 @@ class GameWorldPainter extends CustomPainter {
     final points = controller.track.points;
     if (points.length < 2) return;
 
-    // 1. Trestle wooden supports when track is elevated
+    // 1. Trestle wooden supports at stable world intervals (never jump when track points are pruned)
     final trestleBeamPaint = Paint()
       ..color = const Color(0xFF6D4C41)
       ..strokeWidth = 4.5
@@ -278,24 +309,30 @@ class GameWorldPainter extends CustomPainter {
       ..color = const Color(0xFF8D6E63)
       ..strokeWidth = 2.5;
 
-    for (int i = 0; i < points.length; i += 3) {
-      final p = points[i];
-      if (p.x < -40 || p.x > width + 40) continue;
+    const double trestleSpacing = 48.0;
+    final double worldOffset = controller.totalDistance;
+    final int startK = ((worldOffset - 40.0) / trestleSpacing).floor();
+    final int endK = ((worldOffset + width + 40.0) / trestleSpacing).ceil();
 
-      final trackY = p.y;
-      final groundBaseline = height;
+    final groundBaseline = height;
+
+    for (int k = startK; k <= endK; k++) {
+      final double screenX = k * trestleSpacing - worldOffset;
+      if (screenX < -30.0 || screenX > width + 30.0) continue;
+
+      final double trackY = controller.track.getHeightAt(screenX);
 
       // Draw trestle if track is elevated above baseline
       if (groundBaseline - trackY > 110.0) {
         // Vertical legs
-        canvas.drawLine(Offset(p.x - 7, trackY + 8), Offset(p.x - 12, groundBaseline), trestleBeamPaint);
-        canvas.drawLine(Offset(p.x + 7, trackY + 8), Offset(p.x + 12, groundBaseline), trestleBeamPaint);
+        canvas.drawLine(Offset(screenX - 7, trackY + 8), Offset(screenX - 12, groundBaseline), trestleBeamPaint);
+        canvas.drawLine(Offset(screenX + 7, trackY + 8), Offset(screenX + 12, groundBaseline), trestleBeamPaint);
 
         // Criss-cross braces
         for (double by = trackY + 30; by < groundBaseline - 15; by += 40) {
-          canvas.drawLine(Offset(p.x - 8, by), Offset(p.x + 8, by + 35), trestleCrossPaint);
-          canvas.drawLine(Offset(p.x + 8, by), Offset(p.x - 8, by + 35), trestleCrossPaint);
-          canvas.drawLine(Offset(p.x - 9, by), Offset(p.x + 9, by), trestleCrossPaint);
+          canvas.drawLine(Offset(screenX - 8, by), Offset(screenX + 8, by + 35), trestleCrossPaint);
+          canvas.drawLine(Offset(screenX + 8, by), Offset(screenX - 8, by + 35), trestleCrossPaint);
+          canvas.drawLine(Offset(screenX - 9, by), Offset(screenX + 9, by), trestleCrossPaint);
         }
       }
     }
@@ -1078,4 +1115,11 @@ class GameWorldPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant GameWorldPainter oldDelegate) => true;
+}
+
+class _TreeData {
+  final Offset position;
+  final int colorIndex;
+
+  _TreeData({required this.position, required this.colorIndex});
 }

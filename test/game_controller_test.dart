@@ -74,5 +74,28 @@ void main() {
       expect(controller.collectedTrollsCount, equals(1));
       expect(controller.sparkleParticles, isNotEmpty);
     });
+
+    test('parallax offsets increase monotonically and smoothly without wrapping discontinuities', () {
+      final controller = GameController();
+      controller.initialize(800, 400);
+
+      controller.onPointerDown(const Offset(400, 200));
+
+      double lastMountains = 0.0;
+      double lastHills = 0.0;
+      double lastClouds = 0.0;
+
+      // Simulate extended driving (500 frames)
+      for (int i = 0; i < 500; i++) {
+        controller.update(0.02);
+        expect(controller.parallaxMountains, greaterThanOrEqualTo(lastMountains));
+        expect(controller.parallaxHills, greaterThanOrEqualTo(lastHills));
+        expect(controller.parallaxClouds, greaterThan(lastClouds));
+
+        lastMountains = controller.parallaxMountains;
+        lastHills = controller.parallaxHills;
+        lastClouds = controller.parallaxClouds;
+      }
+    });
   });
 }

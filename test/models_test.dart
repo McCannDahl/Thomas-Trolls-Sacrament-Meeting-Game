@@ -8,7 +8,7 @@ void main() {
   group('TrollData', () {
     test('provides distinct colors and names for each troll type', () {
       for (final type in TrollType.values) {
-        final troll = TrollData(x: 100, type: type);
+        final troll = TrollData(x: 100, y: 200, type: type);
         expect(troll.name, isNotEmpty);
         expect(troll.hairColor, isNotNull);
         expect(troll.skinColor, isNotNull);
@@ -16,10 +16,11 @@ void main() {
     });
 
     test('updates position, bounce, and collection progress', () {
-      final troll = TrollData(x: 200, type: TrollType.poppy, isCollected: true);
+      final troll = TrollData(x: 200, y: 180, type: TrollType.poppy, isCollected: true);
       troll.update(0.1, 10.0);
 
       expect(troll.x, equals(190.0));
+      expect(troll.y, equals(180.0));
       expect(troll.bouncePhase, greaterThan(0.0));
       expect(troll.collectionProgress, greaterThan(0.0));
     });
@@ -60,12 +61,31 @@ void main() {
       final alive = sparkle.update(0.2);
       expect(alive, isTrue);
       expect(sparkle.x, equals(52.0));
-      expect(sparkle.vy, greaterThan(-10.0)); // Gravity applied
+      expect(sparkle.vy, greaterThan(-10.0));
       expect(sparkle.rotation, isNonZero);
       expect(sparkle.currentAlpha, lessThan(1.0));
 
       final expired = sparkle.update(0.4);
       expect(expired, isFalse);
+    });
+
+    test('ConfettiParticle flutters down and rotates', () {
+      final confetti = ConfettiParticle(
+        x: 100,
+        y: 10,
+        vx: 5,
+        vy: 50,
+        rotation: 0.0,
+        vRot: 2.0,
+        color: const Color(0xFFFF1493),
+        width: 10,
+        height: 6,
+      );
+
+      final alive = confetti.update(0.1, 400.0);
+      expect(alive, isTrue);
+      expect(confetti.y, greaterThan(10.0));
+      expect(confetti.rotation, isNonZero);
     });
   });
 

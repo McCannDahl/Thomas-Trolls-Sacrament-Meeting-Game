@@ -4,7 +4,7 @@ import 'package:thomas_trolls/game/models/troll_data.dart';
 
 void main() {
   group('GameController', () {
-    test('initializes with zero speed and spawns initial track and trolls', () {
+    test('initializes with zero speed, 3 carts behind Thomas, and spawns initial track and trolls', () {
       final controller = GameController();
       controller.initialize(800, 400);
 
@@ -14,6 +14,16 @@ void main() {
       expect(controller.track.points, isNotEmpty);
       expect(controller.trolls, isNotEmpty);
       expect(controller.collectedTrollsCount, equals(0));
+      expect(controller.hasWon, isFalse);
+
+      // Verify 3 carts behind Thomas in descending X order
+      final cart0 = controller.getCartX(0);
+      final cart1 = controller.getCartX(1);
+      final cart2 = controller.getCartX(2);
+
+      expect(cart0, lessThan(controller.trainX));
+      expect(cart1, lessThan(cart0));
+      expect(cart2, lessThan(cart1));
     });
 
     test('accelerates when touch is active', () {
@@ -23,7 +33,6 @@ void main() {
       controller.onPointerDown(const Offset(400, 200));
       expect(controller.touchActive, isTrue);
 
-      // Advance 0.5 seconds
       controller.update(0.5);
 
       expect(controller.trainSpeed, greaterThan(0.0));
@@ -54,25 +63,87 @@ void main() {
       expect(controller.trainSpeed, equals(0.0));
     });
 
-    test('picks up trolls when train reaches them', () {
+    test('picks up trolls only when vertical track height matches troll height', () {
       final controller = GameController();
       controller.initialize(800, 400);
 
-      // Place a troll just ahead of train
-      final troll = TrollData(x: controller.trainX + 20.0, type: TrollType.poppy);
-      controller.trolls.clear();
-      controller.trolls.add(troll);
+      final trackY = controller.track.getHeightAt(controller.trainX);
 
-      expect(troll.isCollected, isFalse);
+      // 1. Matching height troll
+      final matchingTroll = TrollData(
+        x: controller.trainX + 20.0,
+        y: trackY,
+        type: TrollType.poppy,
+      );
+      controller.trolls.clear();
+      controller.trolls.add(matchingTroll);
+
+      expect(matchingTroll.isCollected, isFalse);
       expect(controller.collectedTrollsCount, equals(0));
 
-      // Train moves forward
       controller.onPointerDown(const Offset(400, 200));
       controller.update(0.1);
 
-      expect(troll.isCollected, isTrue);
+      expect(matchingTroll.isCollected, isTrue);
       expect(controller.collectedTrollsCount, equals(1));
       expect(controller.sparkleParticles, isNotEmpty);
+    });
+
+    test('misses troll when vertical height does not match track height (no penalty)', () {
+      final controller = GameController();
+      controller.initialize(800, 400);
+
+      final trackY = controller.track.getHeightAt(controller.trainX);
+
+      // Troll is 100px higher up in the sky, far out of reach
+      final highTroll = TrollData(
+        x: controller.trainX + 15.0,
+        y: trackY - 100.0,
+        type: TrollType.branch,
+      );
+      controller.trolls.clear();
+      controller.trolls.add(highTroll);
+
+      controller.onPointerDown(const Offset(400, 200));
+      // Drive past the troll
+      for (int i = 0; i < 15; i++) {
+        controller.update(0.05);
+      }
+
+      // Troll was missed: not collected, count remains 0, no error
+      expect(highTroll.isCollected, isFalse);
+      expect(controller.collectedTrollsCount, equals(0));
+    });
+
+    test('collecting 10 trolls triggers victory, Troll Village arrival, and confetti', () {
+      final controller = GameController();
+      controller.initialize(800, 400);
+
+      final trackY = controller.track.getHeightAt(controller.trainX);
+
+      // Collect 10 trolls
+      for (int k = 0; k < 10; k++) {
+        final troll = TrollData(
+          x: controller.trainX + 10.0,
+          y: trackY,
+          type: TrollType.values[k % TrollType.values.length],
+        );
+        controller.trolls.clear();
+        controller.trolls.add(troll);
+
+        controller.onPointerDown(const Offset(400, 200));
+        controller.update(0.08);
+
+        expect(troll.isCollected, isTrue);
+      }
+
+      expect(controller.collectedTrollsCount, equals(10));
+      expect(controller.hasWon, isTrue);
+      expect(controller.villageX, isNotNull);
+
+      // Confetti spawns during victory
+      controller.update(0.1);
+      expect(controller.confettiParticles, isNotEmpty);
     });
 
     test('parallax offsets increase monotonically and smoothly without wrapping discontinuities', () {
@@ -85,7 +156,6 @@ void main() {
       double lastHills = 0.0;
       double lastClouds = 0.0;
 
-      // Simulate extended driving (500 frames)
       for (int i = 0; i < 500; i++) {
         controller.update(0.02);
         expect(controller.parallaxMountains, greaterThanOrEqualTo(lastMountains));

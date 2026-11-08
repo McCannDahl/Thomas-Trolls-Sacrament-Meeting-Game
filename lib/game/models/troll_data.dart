@@ -11,17 +11,21 @@ enum TrollType {
 
 class TrollData {
   double x;
+  double y; // Specific vertical height where this troll is positioned in the world
   final TrollType type;
   bool isCollected;
   double collectionProgress; // 0.0 -> 1.0 when hopping into train
   double bouncePhase;
+  int collectedOrder; // 0..9: order in which troll was collected
 
   TrollData({
     required this.x,
+    required this.y,
     required this.type,
     this.isCollected = false,
     this.collectionProgress = 0.0,
     this.bouncePhase = 0.0,
+    this.collectedOrder = -1,
   });
 
   Color get hairColor {
@@ -80,7 +84,7 @@ class TrollData {
     bouncePhase += dt * 5.0;
 
     if (isCollected && collectionProgress < 1.0) {
-      collectionProgress = (collectionProgress + dt * 2.5).clamp(0.0, 1.0);
+      collectionProgress = (collectionProgress + dt * 2.2).clamp(0.0, 1.0);
     }
   }
 }

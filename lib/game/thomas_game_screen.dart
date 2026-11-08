@@ -167,7 +167,7 @@ class _ThomasGameScreenState extends State<ThomasGameScreen>
                                   ),
                                 ),
                                 Text(
-                                  '${_controller.collectedTrollsCount}',
+                                  '${_controller.collectedTrollsCount} / 10',
                                   style: const TextStyle(
                                     fontSize: 17,
                                     fontWeight: FontWeight.w900,
@@ -182,6 +182,90 @@ class _ThomasGameScreenState extends State<ThomasGameScreen>
                     ],
                   ),
                 ),
+              ),
+
+              // 3. Victory Celebration Banner (Arrived at Troll Village!)
+              ListenableBuilder(
+                listenable: _controller,
+                builder: (context, _) {
+                  if (!_controller.villageStationReached) return const SizedBox.shrink();
+
+                  return Center(
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 32),
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Color(0xFFFFF9C4),
+                            Color(0xFFFFFFFF),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(28),
+                        border: Border.all(color: const Color(0xFFFF4081), width: 3.5),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Colors.black38,
+                            blurRadius: 16,
+                            offset: Offset(0, 6),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text('🎉 ', style: TextStyle(fontSize: 26)),
+                              Text(
+                                'WELCOME TO TROLL VILLAGE!',
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w900,
+                                  color: Color(0xFFC2185B),
+                                ),
+                              ),
+                              Text(' 🎉', style: TextStyle(fontSize: 26)),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          const Text(
+                            'All 10 Trolls arrived safely! (3 in each cart & 1 with Thomas! 🚂)',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1976D2),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF4CAF50),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              elevation: 4,
+                            ),
+                            onPressed: () {
+                              _controller.initialize(width, height);
+                            },
+                            icon: const Icon(Icons.replay, size: 22),
+                            label: const Text(
+                              'Play Again!',
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
               ),
 
               // 3. Toddler-Friendly Animated Instructions (Fades after play starts)

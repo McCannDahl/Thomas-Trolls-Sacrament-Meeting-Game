@@ -31,30 +31,39 @@ class GameWorldPainter extends CustomPainter {
     // 5. Draw Ground & Trestle Bridges under Track
     _drawGroundAndTrestles(canvas, width, height);
 
-    // 6. Draw Railroad Track (Sleepers & Steel Rails)
+    // 6. Draw Troll Village (Station, Cocoon Pods, Trees) if reached
+    if (controller.villageX != null) {
+      _drawTrollVillage(canvas, width, height);
+    }
+
+    // 7. Draw Railroad Track (Sleepers & Steel Rails)
     _drawTrack(canvas);
 
-    // 7. Draw Trolls on Track
+    // 8. Draw Trolls (Floating in air or hopping into train)
     _drawTrolls(canvas);
 
-    // 8. Draw Carriage
-    _drawCarriage(canvas);
+    // 9. Draw 3 Carriages pulled by Thomas
+    _drawCarriages(canvas);
 
-    // 9. Draw Thomas Train
+    // 10. Draw Thomas Train
     _drawTrain(canvas);
 
-    // 10. Draw Smoke Puffs
+    // 11. Draw Smoke Puffs
     _drawSmoke(canvas);
 
-    // 11. Draw Sparkles
+    // 12. Draw Sparkles
     _drawSparkles(canvas);
 
-    // 12. Draw Touch Feedback Guide
+    // 13. Draw Confetti if victory reached
+    if (controller.hasWon) {
+      _drawConfetti(canvas);
+    }
+
+    // 14. Draw Touch Feedback Guide
     _drawTouchGuide(canvas, width, height);
   }
 
   void _drawSky(Canvas canvas, double width, double height) {
-    // Soft sunny sky gradient
     final skyRect = Rect.fromLTWH(0, 0, width, height);
     final skyPaint = Paint()
       ..shader = const LinearGradient(
@@ -193,7 +202,6 @@ class GameWorldPainter extends CustomPainter {
       final peakX = leftX + mountainSpacing * 0.5;
       final rightX = leftX + mountainSpacing;
 
-      // Deterministic height based on mountain index i (never jitters during scrolling)
       final hSeed = math.sin(i * 17.13) * 0.5 + 0.5;
       final peakY = height * 0.32 + hSeed * 50.0;
 
@@ -203,7 +211,6 @@ class GameWorldPainter extends CustomPainter {
       path.lineTo(peakX, peakY);
       path.lineTo(rightX, height * 0.78);
 
-      // Snow cap at peak
       snowPath.moveTo(peakX, peakY);
       snowPath.lineTo(peakX - 28, peakY + 38);
       snowPath.lineTo(peakX - 10, peakY + 34);
@@ -238,22 +245,24 @@ class GameWorldPainter extends CustomPainter {
       final crestX = leftX + hillSpacing * 0.5;
       final rightX = leftX + hillSpacing;
 
-      // Deterministic hill height based on hill index j
       final hSeed = math.sin(j * 9.71) * 0.5 + 0.5;
       final crestY = height * 0.52 + hSeed * 30.0;
       final baselineY = height * 0.68;
+
+      // Mathematical apex of the quadratic bezier curve at crestX:
+      final yApex = (baselineY + crestY) * 0.5;
 
       if (j == startIdx) {
         hillPath.lineTo(leftX, baselineY);
       }
       hillPath.quadraticBezierTo(crestX, crestY, rightX, baselineY);
 
-      // Stable tree placement: hill j has a tree if j is even (never flashes or disappears)
+      // Trees anchored firmly on top of the green hill crest (no sky floating)
       if (j % 2 == 0) {
         final treeColorIdx = (j.abs() ~/ 2) % 3;
         treesToDraw.add(
           _TreeData(
-            position: Offset(crestX, crestY + 4),
+            position: Offset(crestX, yApex + 2.0),
             colorIndex: treeColorIdx,
           ),
         );
@@ -265,21 +274,19 @@ class GameWorldPainter extends CustomPainter {
 
     canvas.drawPath(hillPath, hillPaint);
 
-    // Draw cartoon trees on the hill crests
+    // Draw cartoon trees on the hill tops
     for (final tree in treesToDraw) {
       _drawCartoonTree(canvas, tree.position, 0.85, tree.colorIndex);
     }
   }
 
   void _drawCartoonTree(Canvas canvas, Offset base, double scale, int colorIndex) {
-    // Trunk
     final trunkPaint = Paint()
       ..color = const Color(0xFF795548)
       ..strokeWidth = 5.0 * scale
       ..strokeCap = StrokeCap.round;
     canvas.drawLine(base, base + Offset(0, -22 * scale), trunkPaint);
 
-    // Foliage with stable color index
     const foliageColors = [
       Color(0xFF43A047),
       Color(0xFF66BB6A),
@@ -300,7 +307,7 @@ class GameWorldPainter extends CustomPainter {
     final points = controller.track.points;
     if (points.length < 2) return;
 
-    // 1. Trestle wooden supports at stable world intervals (never jump when track points are pruned)
+    // Trestle wooden supports at stable world intervals
     final trestleBeamPaint = Paint()
       ..color = const Color(0xFF6D4C41)
       ..strokeWidth = 4.5
@@ -322,13 +329,10 @@ class GameWorldPainter extends CustomPainter {
 
       final double trackY = controller.track.getHeightAt(screenX);
 
-      // Draw trestle if track is elevated above baseline
       if (groundBaseline - trackY > 110.0) {
-        // Vertical legs
         canvas.drawLine(Offset(screenX - 7, trackY + 8), Offset(screenX - 12, groundBaseline), trestleBeamPaint);
         canvas.drawLine(Offset(screenX + 7, trackY + 8), Offset(screenX + 12, groundBaseline), trestleBeamPaint);
 
-        // Criss-cross braces
         for (double by = trackY + 30; by < groundBaseline - 15; by += 40) {
           canvas.drawLine(Offset(screenX - 8, by), Offset(screenX + 8, by + 35), trestleCrossPaint);
           canvas.drawLine(Offset(screenX + 8, by), Offset(screenX - 8, by + 35), trestleCrossPaint);
@@ -337,7 +341,7 @@ class GameWorldPainter extends CustomPainter {
       }
     }
 
-    // 2. Solid Lush Green Rolling Hill under the track
+    // Solid Lush Green Rolling Hill under the track
     final groundPath = Path();
     groundPath.moveTo(points.first.x, height);
     groundPath.lineTo(points.first.x, points.first.y + 6);
@@ -362,7 +366,6 @@ class GameWorldPainter extends CustomPainter {
 
     canvas.drawPath(groundPath, Paint()..shader = groundGradient);
 
-    // Grass fringe highlight along track line
     final grassFringePath = Path();
     grassFringePath.moveTo(points.first.x, points.first.y + 6);
     for (int i = 1; i < points.length; i++) {
@@ -377,13 +380,209 @@ class GameWorldPainter extends CustomPainter {
     canvas.drawPath(grassFringePath, grassFringePaint);
   }
 
+  void _drawTrollVillage(Canvas canvas, double width, double height) {
+    final double vx = controller.villageX!;
+    final double vy = controller.track.getHeightAt(vx);
+
+    // 1. Giant DreamWorks Troll Trees with Canopy Branches
+    final treePaint = Paint()..color = const Color(0xFF5D4037);
+    final canopyPaint = Paint()..color = const Color(0xFF00E676).withValues(alpha: 0.85);
+
+    // Tree 1 Trunk
+    final trunk1 = Path()
+      ..moveTo(vx - 20, height)
+      ..lineTo(vx + 10, vy - 120)
+      ..lineTo(vx + 45, vy - 120)
+      ..lineTo(vx + 60, height)
+      ..close();
+    canvas.drawPath(trunk1, treePaint);
+
+    // Canopy foliage
+    canvas.drawCircle(Offset(vx + 25, vy - 140), 65, canopyPaint);
+    canvas.drawCircle(Offset(vx + 80, vy - 160), 55, canopyPaint);
+    canvas.drawCircle(Offset(vx - 20, vy - 150), 50, canopyPaint);
+
+    // Tree 2 Trunk (farther right)
+    final trunk2 = Path()
+      ..moveTo(vx + 160, height)
+      ..lineTo(vx + 185, vy - 110)
+      ..lineTo(vx + 215, vy - 110)
+      ..lineTo(vx + 230, height)
+      ..close();
+    canvas.drawPath(trunk2, treePaint);
+    canvas.drawCircle(Offset(vx + 200, vy - 135), 60, canopyPaint);
+    canvas.drawCircle(Offset(vx + 245, vy - 150), 50, canopyPaint);
+
+    // 2. Hanging Egg-Shaped Cocoon Pod Houses
+    // Pod 1: Hot Pink Cocoon
+    _drawCocoonPod(
+      canvas,
+      anchor: Offset(vx - 10, vy - 140),
+      podCenter: Offset(vx - 15, vy - 85),
+      podColor: const Color(0xFFFF1493),
+      capColor: const Color(0xFF00E5FF),
+    );
+
+    // Pod 2: Bright Golden Yellow Cocoon
+    _drawCocoonPod(
+      canvas,
+      anchor: Offset(vx + 45, vy - 150),
+      podCenter: Offset(vx + 40, vy - 95),
+      podColor: const Color(0xFFFFD700),
+      capColor: const Color(0xFFFF4081),
+    );
+
+    // Pod 3: Glitter Cyan Cocoon
+    _drawCocoonPod(
+      canvas,
+      anchor: Offset(vx + 115, vy - 155),
+      podCenter: Offset(vx + 110, vy - 100),
+      podColor: const Color(0xFF00E5FF),
+      capColor: const Color(0xFFAB47BC),
+    );
+
+    // Pod 4: Royal Purple Cocoon
+    _drawCocoonPod(
+      canvas,
+      anchor: Offset(vx + 180, vy - 130),
+      podCenter: Offset(vx + 175, vy - 80),
+      podColor: const Color(0xFFAB47BC),
+      capColor: const Color(0xFF76FF03),
+    );
+
+    // 3. Station Platform & Wooden Shelter
+    final platformPaint = Paint()..color = const Color(0xFF8D6E63);
+    final platformTopPaint = Paint()..color = const Color(0xFFA1887F);
+    final platformRect = Rect.fromLTWH(vx - 40, vy - 4, 300, 18);
+    canvas.drawRect(platformRect, platformPaint);
+    canvas.drawRect(Rect.fromLTWH(vx - 40, vy - 6, 300, 4), platformTopPaint);
+
+    // Festive Bunting Flags between posts
+    final flagColors = [
+      const Color(0xFFFF1493),
+      const Color(0xFFFFEB3B),
+      const Color(0xFF00E5FF),
+      const Color(0xFF76FF03),
+      const Color(0xFFFF5722),
+    ];
+
+    final polePaint = Paint()
+      ..color = const Color(0xFF4E342E)
+      ..strokeWidth = 3.5;
+    canvas.drawLine(Offset(vx - 20, vy - 6), Offset(vx - 20, vy - 50), polePaint);
+    canvas.drawLine(Offset(vx + 240, vy - 6), Offset(vx + 240, vy - 50), polePaint);
+
+    // Bunting cord
+    final cordPath = Path()
+      ..moveTo(vx - 20, vy - 46)
+      ..quadraticBezierTo(vx + 110, vy - 32, vx + 240, vy - 46);
+    canvas.drawPath(
+      cordPath,
+      Paint()
+        ..color = const Color(0xFFFFF9C4)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5,
+    );
+
+    // Bunting triangular flags
+    for (int f = 0; f < 9; f++) {
+      final t = (f + 0.5) / 9.0;
+      final fx = (vx - 20) + 260.0 * t;
+      final fy = (vy - 46) + math.sin(t * math.pi) * 14.0;
+      final fColor = flagColors[f % flagColors.length];
+
+      final flagPath = Path()
+        ..moveTo(fx - 7, fy)
+        ..lineTo(fx + 7, fy)
+        ..lineTo(fx, fy + 12)
+        ..close();
+      canvas.drawPath(flagPath, Paint()..color = fColor);
+    }
+
+    // 4. Village Station Signboard
+    final signBg = RRect.fromRectAndRadius(
+      Rect.fromCenter(center: Offset(vx + 110, vy - 68), width: 140, height: 26),
+      const Radius.circular(8),
+    );
+    canvas.drawRRect(signBg, Paint()..color = const Color(0xFF880E4F));
+    canvas.drawRRect(
+      signBg,
+      Paint()
+        ..color = const Color(0xFFFFD54F)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0,
+    );
+
+    final signText = TextPainter(
+      text: const TextSpan(
+        text: '🌸 TROLL VILLAGE 🌸',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 11.5,
+          fontWeight: FontWeight.w900,
+          fontFamily: 'sans-serif',
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    signText.paint(canvas, Offset(vx + 110 - signText.width / 2, vy - 75));
+  }
+
+  void _drawCocoonPod(
+    Canvas canvas, {
+    required Offset anchor,
+    required Offset podCenter,
+    required Color podColor,
+    required Color capColor,
+  }) {
+    // Hanging vine thread
+    final vinePaint = Paint()
+      ..color = const Color(0xFF43A047)
+      ..strokeWidth = 2.0;
+    canvas.drawLine(anchor, podCenter + const Offset(0, -22), vinePaint);
+
+    // Pod Leaf Cap
+    final capPaint = Paint()..color = capColor;
+    final capPath = Path()
+      ..moveTo(podCenter.dx - 14, podCenter.dy - 16)
+      ..quadraticBezierTo(podCenter.dx, podCenter.dy - 25, podCenter.dx + 14, podCenter.dy - 16)
+      ..close();
+    canvas.drawPath(capPath, capPaint);
+
+    // Egg-shaped cocoon body
+    final podRect = Rect.fromCenter(center: podCenter, width: 28, height: 38);
+    canvas.drawOval(podRect, Paint()..color = podColor);
+
+    // Pod highlight shine
+    final shinePaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.35)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0;
+    canvas.drawArc(podRect.deflate(3.0), -2.2, 1.2, false, shinePaint);
+
+    // Cozy lit circular window with warm golden glow
+    final winCenter = podCenter + const Offset(0, 2);
+    canvas.drawCircle(winCenter, 6.0, Paint()..color = const Color(0xFFFFF176));
+    canvas.drawCircle(
+      winCenter,
+      6.0,
+      Paint()
+        ..color = const Color(0xFFFFD54F)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4,
+    );
+    // Window cross pane
+    canvas.drawLine(winCenter - const Offset(5, 0), winCenter + const Offset(5, 0), Paint()..color = const Color(0xFFF57F17));
+    canvas.drawLine(winCenter - const Offset(0, 5), winCenter + const Offset(0, 5), Paint()..color = const Color(0xFFF57F17));
+  }
+
   void _drawTrack(Canvas canvas) {
     final points = controller.track.points;
     if (points.length < 2) return;
 
-    // 1. Draw Wooden Ties (Sleepers) along the curve
+    // Wooden Ties along the curve
     final tiePaint = Paint()
-      ..color = const Color(0xFF4E342E) // Deep wood brown
+      ..color = const Color(0xFF4E342E)
       ..strokeWidth = 7.0
       ..strokeCap = StrokeCap.round;
 
@@ -416,7 +615,6 @@ class GameWorldPainter extends CustomPainter {
         final bottom = Offset(p0.x + normalX * tieHalfLength, p0.y + normalY * tieHalfLength);
 
         canvas.drawLine(top, bottom, tiePaint);
-        // Highlight on sleeper edge
         canvas.drawLine(
           top + Offset(normalY * 1.5, -normalX * 1.5),
           bottom + Offset(normalY * 1.5, -normalX * 1.5),
@@ -425,7 +623,7 @@ class GameWorldPainter extends CustomPainter {
       }
     }
 
-    // 2. Draw Parallel Steel Rails (Top rail & Bottom rail)
+    // Parallel Steel Rails
     const double railOffsets = 6.0;
 
     void drawRail(double offsetDistance, Color baseColor, Color gleamColor) {
@@ -450,7 +648,6 @@ class GameWorldPainter extends CustomPainter {
         }
       }
 
-      // Base rail bar
       canvas.drawPath(
         railPath,
         Paint()
@@ -461,7 +658,6 @@ class GameWorldPainter extends CustomPainter {
           ..strokeJoin = StrokeJoin.round,
       );
 
-      // Metallic gleam line on top of rail
       canvas.drawPath(
         gleamPath,
         Paint()
@@ -473,9 +669,7 @@ class GameWorldPainter extends CustomPainter {
       );
     }
 
-    // Bottom rail (farther in 2.5D perspective)
     drawRail(railOffsets, const Color(0xFF37474F), const Color(0xFF78909C));
-    // Top rail
     drawRail(-railOffsets, const Color(0xFF263238), const Color(0xFFCFD8DC));
   }
 
@@ -490,15 +684,22 @@ class GameWorldPainter extends CustomPainter {
   }
 
   void _drawStandingTroll(Canvas canvas, TrollData troll) {
-    final trackY = controller.track.getHeightAt(troll.x);
-    final trackAngle = controller.track.getAngleAt(troll.x);
-
-    // Idle happy bounce
-    final bounceY = math.sin(troll.bouncePhase) * 3.5;
+    // Trolls appear at diverse heights with a cute little floating cloud under them
+    final bounceY = math.sin(troll.bouncePhase) * 4.0;
+    final posY = troll.y + bounceY;
 
     canvas.save();
-    canvas.translate(troll.x, trackY + bounceY);
-    canvas.rotate(trackAngle);
+    canvas.translate(troll.x, posY);
+
+    // Floating cloud platform beneath troll's feet
+    final cloudPaint = Paint()..color = Colors.white.withValues(alpha: 0.88);
+    final cloudShadow = Paint()..color = const Color(0xFFBBDEFB).withValues(alpha: 0.80);
+    canvas.drawCircle(const Offset(-8, 3), 7, cloudShadow);
+    canvas.drawCircle(const Offset(8, 3), 7, cloudShadow);
+    canvas.drawCircle(const Offset(0, 1), 9, cloudShadow);
+    canvas.drawCircle(const Offset(-8, 1), 7, cloudPaint);
+    canvas.drawCircle(const Offset(8, 1), 7, cloudPaint);
+    canvas.drawCircle(const Offset(0, -1), 9, cloudPaint);
 
     _drawTrollFigure(canvas, troll, isWaving: true);
 
@@ -510,21 +711,32 @@ class GameWorldPainter extends CustomPainter {
 
     final progress = troll.collectionProgress;
     final startX = troll.x;
-    final startY = controller.track.getHeightAt(troll.x);
+    final startY = troll.y;
 
-    final targetX = controller.carriageX;
-    final targetY = controller.track.getHeightAt(targetX) - 15.0;
+    double targetX;
+    double targetY;
 
-    // Arc trajectory
+    if (troll.collectedOrder >= 0 && troll.collectedOrder < 9) {
+      final cartIdx = troll.collectedOrder ~/ 3;
+      final winIdx = troll.collectedOrder % 3;
+      final cartX = controller.getCartX(cartIdx);
+      targetX = cartX + (winIdx - 1) * 14.0;
+      targetY = controller.track.getHeightAt(cartX) - 20.0;
+    } else {
+      // 10th troll hops into Thomas's cab window
+      targetX = controller.trainX - 22.0;
+      targetY = controller.track.getHeightAt(controller.trainX) - 30.0;
+    }
+
     final currentX = startX + (targetX - startX) * progress;
     final arcHeight = math.sin(progress * math.pi) * 80.0;
     final currentY = (startY + (targetY - startY) * progress) - arcHeight;
 
     canvas.save();
     canvas.translate(currentX, currentY);
-    canvas.rotate(progress * math.pi * 2.0); // Happy flip!
+    canvas.rotate(progress * math.pi * 2.0);
 
-    _drawTrollFigure(canvas, troll, isWaving: true, scale: 1.0 - progress * 0.25);
+    _drawTrollFigure(canvas, troll, isWaving: true, scale: 1.0 - progress * 0.35);
 
     canvas.restore();
   }
@@ -537,15 +749,13 @@ class GameWorldPainter extends CustomPainter {
   }) {
     canvas.scale(scale, scale);
 
-    // Sits on track ground: feet around (0, -2)
-    // 1. Troll Body & Outfit
     final bodyPaint = Paint()..color = troll.skinColor;
     final outfitPaint = Paint()
       ..color = troll.type == TrollType.poppy
           ? const Color(0xFF039BE5)
           : (troll.type == TrollType.branch ? const Color(0xFF6D4C41) : const Color(0xFFFFB300));
 
-    // Little feet
+    // Feet
     canvas.drawOval(
       Rect.fromCenter(center: const Offset(-5, -3), width: 7, height: 5),
       bodyPaint,
@@ -555,7 +765,7 @@ class GameWorldPainter extends CustomPainter {
       bodyPaint,
     );
 
-    // Dress / Vest body
+    // Dress / Vest
     final bodyPath = Path();
     bodyPath.moveTo(-8, -4);
     bodyPath.lineTo(-5, -18);
@@ -571,10 +781,8 @@ class GameWorldPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round;
 
     if (isWaving) {
-      // Left arm waving up
       canvas.drawLine(const Offset(-6, -14), const Offset(-14, -24), armPaint);
       canvas.drawCircle(const Offset(-14, -24), 2.5, bodyPaint);
-      // Right arm out
       canvas.drawLine(const Offset(6, -14), const Offset(14, -18), armPaint);
       canvas.drawCircle(const Offset(14, -18), 2.5, bodyPaint);
     } else {
@@ -582,22 +790,17 @@ class GameWorldPainter extends CustomPainter {
       canvas.drawLine(const Offset(6, -14), const Offset(12, -8), armPaint);
     }
 
-    // 2. Big Pointy DreamWorks Troll Hair
+    // Big Pointy DreamWorks Troll Hair
     final hairPaint = Paint()..color = troll.hairColor;
     final hairPath = Path();
     hairPath.moveTo(-11, -22);
-    // Left flare
     hairPath.quadraticBezierTo(-18, -35, -12, -50);
-    // Tip reaching high
     hairPath.quadraticBezierTo(-5, -64, 0, -70);
-    // Right tip curve
     hairPath.quadraticBezierTo(5, -64, 12, -50);
-    // Right flare
     hairPath.quadraticBezierTo(18, -35, 11, -22);
     hairPath.close();
     canvas.drawPath(hairPath, hairPaint);
 
-    // Hair sparkle/shading highlights
     final hairShinePaint = Paint()
       ..color = Colors.white.withValues(alpha: 0.40)
       ..strokeWidth = 2.5
@@ -621,19 +824,18 @@ class GameWorldPainter extends CustomPainter {
         false,
         bandPaint,
       );
-      // Pink and blue flowers
       canvas.drawCircle(const Offset(-7, -23), 3.0, Paint()..color = const Color(0xFF00E5FF));
       canvas.drawCircle(const Offset(0, -25), 3.5, Paint()..color = const Color(0xFFFF4081));
       canvas.drawCircle(const Offset(7, -23), 3.0, Paint()..color = const Color(0xFF00E5FF));
     }
 
-    // 3. Cute Troll Face & Head
+    // Cute Face & Head
     canvas.drawOval(
       Rect.fromCenter(center: const Offset(0, -20), width: 18, height: 14),
       bodyPaint,
     );
 
-    // Big pointy troll ears!
+    // Pointy Troll Ears
     final earPathLeft = Path()
       ..moveTo(-8, -20)
       ..lineTo(-16, -22)
@@ -652,7 +854,7 @@ class GameWorldPainter extends CustomPainter {
     canvas.drawCircle(const Offset(-5, -18), 2.2, cheekPaint);
     canvas.drawCircle(const Offset(5, -18), 2.2, cheekPaint);
 
-    // Cute Eyes with Shine
+    // Eyes
     final eyePaint = Paint()..color = const Color(0xFF212121);
     canvas.drawCircle(const Offset(-3.5, -21), 2.2, eyePaint);
     canvas.drawCircle(const Offset(3.5, -21), 2.2, eyePaint);
@@ -660,14 +862,14 @@ class GameWorldPainter extends CustomPainter {
     canvas.drawCircle(const Offset(-4.0, -22), 0.9, eyeGleam);
     canvas.drawCircle(const Offset(3.0, -22), 0.9, eyeGleam);
 
-    // Sweet Button Nose
+    // Button Nose
     canvas.drawCircle(
       const Offset(0, -19),
       1.8,
       Paint()..color = troll.skinColor.withValues(alpha: 0.85),
     );
 
-    // Happy Smile
+    // Smile
     final mouthPaint = Paint()
       ..color = const Color(0xFFC2185B)
       ..style = PaintingStyle.stroke
@@ -683,95 +885,111 @@ class GameWorldPainter extends CustomPainter {
     canvas.drawPath(mouthPath, mouthPaint);
   }
 
-  void _drawCarriage(Canvas canvas) {
-    final carriageX = controller.carriageX;
-    final trackY = controller.track.getHeightAt(carriageX);
-    final angle = controller.track.getAngleAt(carriageX);
+  void _drawCarriages(Canvas canvas) {
+    // 3 Carts behind Thomas (Cart 0, Cart 1, Cart 2)
+    // Cart 0 holds trolls 1, 2, 3
+    // Cart 1 holds trolls 4, 5, 6
+    // Cart 2 holds trolls 7, 8, 9
+    final cartColors = [
+      const Color(0xFFC62828), // Clarabel / Annie Red
+      const Color(0xFFE65100), // Amber / Warm Orange Coach
+      const Color(0xFF6A1B9A), // Royal Plum Coach
+    ];
 
-    canvas.save();
-    canvas.translate(carriageX, trackY);
-    canvas.rotate(angle);
+    for (int c = 2; c >= 0; c--) {
+      final cartX = controller.getCartX(c);
+      final trackY = controller.track.getHeightAt(cartX);
+      final angle = controller.track.getAngleAt(cartX);
 
-    // Carriage Body: Warm Railway Teak Red/Brown
-    final coachWidth = 56.0;
-    final coachHeight = 36.0;
+      canvas.save();
+      canvas.translate(cartX, trackY);
+      canvas.rotate(angle);
 
-    // Coupler bar connecting to Thomas
-    final couplerPaint = Paint()
-      ..color = const Color(0xFF212121)
-      ..strokeWidth = 4.0
-      ..strokeCap = StrokeCap.round;
-    canvas.drawLine(Offset(coachWidth / 2, -10), Offset(coachWidth / 2 + 25, -10), couplerPaint);
+      // Coupler linking forward
+      final nextVehicleX = (c == 0) ? controller.trainX : controller.getCartX(c - 1);
+      final couplerLength = nextVehicleX - cartX;
 
-    // Coach Body
-    final coachRect = RRect.fromRectAndRadius(
-      Rect.fromCenter(
-        center: Offset(0, -coachHeight / 2 - 8),
-        width: coachWidth,
-        height: coachHeight,
-      ),
-      const Radius.circular(5.0),
-    );
-    final coachPaint = Paint()..color = const Color(0xFFB71C1C); // Clarabel / Annie Red
-    canvas.drawRRect(coachRect, coachPaint);
+      final couplerPaint = Paint()
+        ..color = const Color(0xFF212121)
+        ..strokeWidth = 4.0
+        ..strokeCap = StrokeCap.round;
+      canvas.drawLine(const Offset(24, -10), Offset(24 + (couplerLength - 48), -10), couplerPaint);
 
-    // Yellow Coach Lining & Trim
-    final trimPaint = Paint()
-      ..color = const Color(0xFFFFD54F)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.8;
-    canvas.drawRRect(coachRect, trimPaint);
-
-    // Roof
-    final roofPaint = Paint()..color = const Color(0xFF37474F);
-    final roofPath = Path();
-    roofPath.moveTo(-coachWidth / 2 - 3, -coachHeight - 8);
-    roofPath.quadraticBezierTo(0, -coachHeight - 16, coachWidth / 2 + 3, -coachHeight - 8);
-    roofPath.close();
-    canvas.drawPath(roofPath, roofPaint);
-
-    // Arched Windows
-    final windowPaint = Paint()..color = const Color(0xFFFFF9C4); // Warm interior glow
-    final windowFramePaint = Paint()
-      ..color = const Color(0xFFFFD54F)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
-
-    for (int w = -1; w <= 1; w++) {
-      final wRect = RRect.fromRectAndRadius(
+      // Coach body
+      const coachWidth = 48.0;
+      const coachHeight = 34.0;
+      final coachRect = RRect.fromRectAndRadius(
         Rect.fromCenter(
-          center: Offset(w * 16.0, -coachHeight / 2 - 10),
-          width: 10,
-          height: 14,
+          center: const Offset(0, -coachHeight / 2 - 8),
+          width: coachWidth,
+          height: coachHeight,
         ),
-        const Radius.circular(3.0),
+        const Radius.circular(5.0),
       );
-      canvas.drawRRect(wRect, windowPaint);
-      canvas.drawRRect(wRect, windowFramePaint);
 
-      // If we collected trolls, show their colorful hair/face smiling through the windows!
-      if (controller.collectedTrollsCount > (w + 1)) {
-        final trollTypes = TrollType.values;
-        final type = trollTypes[(w + 1) % trollTypes.length];
-        final peekTroll = TrollData(x: 0, type: type);
-        canvas.save();
-        canvas.translate(w * 16.0, -coachHeight / 2 - 1);
-        _drawTrollFigure(canvas, peekTroll, scale: 0.42);
-        canvas.restore();
+      canvas.drawRRect(coachRect, Paint()..color = cartColors[c]);
+      canvas.drawRRect(
+        coachRect,
+        Paint()
+          ..color = const Color(0xFFFFD54F)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.6,
+      );
+
+      // Coach curved roof
+      final roofPaint = Paint()..color = const Color(0xFF37474F);
+      final roofPath = Path()
+        ..moveTo(-coachWidth / 2 - 2, -coachHeight - 8)
+        ..quadraticBezierTo(0, -coachHeight - 16, coachWidth / 2 + 2, -coachHeight - 8)
+        ..close();
+      canvas.drawPath(roofPath, roofPaint);
+
+      // 3 Passenger Windows for this cart
+      final windowPaint = Paint()..color = const Color(0xFFFFF9C4);
+      final windowFramePaint = Paint()
+        ..color = const Color(0xFFFFD54F)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.3;
+
+      for (int w = 0; w < 3; w++) {
+        final winX = (w - 1) * 14.0;
+        final wRect = RRect.fromRectAndRadius(
+          Rect.fromCenter(
+            center: Offset(winX, -coachHeight / 2 - 9),
+            width: 9,
+            height: 13,
+          ),
+          const Radius.circular(3.0),
+        );
+        canvas.drawRRect(wRect, windowPaint);
+        canvas.drawRRect(wRect, windowFramePaint);
+
+        // Find if the troll for this cart and window is collected
+        final trollOrder = c * 3 + w;
+        final seatedTroll = controller.trolls.cast<TrollData?>().firstWhere(
+          (t) => t != null && t.isCollected && t.collectedOrder == trollOrder && t.collectionProgress >= 1.0,
+          orElse: () => null,
+        );
+
+        if (seatedTroll != null) {
+          canvas.save();
+          canvas.translate(winX, -coachHeight / 2 - 1);
+          _drawTrollFigure(canvas, seatedTroll, scale: 0.38);
+          canvas.restore();
+        }
       }
+
+      // Wheels
+      _drawWheel(canvas, const Offset(-15, -7), 7.0, controller.wheelAngle);
+      _drawWheel(canvas, const Offset(15, -7), 7.0, controller.wheelAngle);
+
+      canvas.restore();
     }
-
-    // Carriage Wheels
-    _drawWheel(canvas, const Offset(-17, -7), 7.0, controller.wheelAngle);
-    _drawWheel(canvas, const Offset(17, -7), 7.0, controller.wheelAngle);
-
-    canvas.restore();
   }
 
   void _drawTrain(Canvas canvas) {
     final trainX = controller.trainX;
 
-    // Contact points for front and rear wheels to align pitch perfectly
     final frontX = trainX + 32.0;
     final rearX = trainX - 32.0;
     final frontY = controller.track.getHeightAt(frontX);
@@ -785,8 +1003,8 @@ class GameWorldPainter extends CustomPainter {
     canvas.rotate(pitchAngle);
 
     // --- THOMAS THE TANK ENGINE ---
-    // Chassis & Running Board (Black & Red)
-    final runningBoardPaint = Paint()..color = const Color(0xFFD32F2F); // Red buffer beam / board
+    // Chassis & Running Board (Red)
+    final runningBoardPaint = Paint()..color = const Color(0xFFD32F2F);
     final chassisRect = RRect.fromRectAndRadius(
       Rect.fromCenter(center: const Offset(0, -9), width: 88, height: 7),
       const Radius.circular(3.0),
@@ -798,8 +1016,8 @@ class GameWorldPainter extends CustomPainter {
     canvas.drawCircle(const Offset(45, -9), 4.5, bufferPaint);
     canvas.drawCircle(const Offset(-45, -9), 4.5, bufferPaint);
 
-    // 1. Cab (Back of engine)
-    final cabPaint = Paint()..color = const Color(0xFF1976D2); // Thomas Blue
+    // 1. Cab
+    final cabPaint = Paint()..color = const Color(0xFF1976D2);
     final cabRect = RRect.fromRectAndRadius(
       Rect.fromCenter(center: const Offset(-22, -29), width: 34, height: 34),
       const Radius.circular(3.0),
@@ -816,11 +1034,11 @@ class GameWorldPainter extends CustomPainter {
       ..close();
     canvas.drawPath(cabRoofPath, roofPaint);
 
-    // Brass Whistle on Cab Roof
+    // Brass Whistle
     final whistlePaint = Paint()..color = const Color(0xFFFFD54F);
     canvas.drawRect(const Rect.fromLTWH(-18, -55, 3.5, 9), whistlePaint);
 
-    // Cab Window (Arched)
+    // Cab Window (Arched) - Where the 10th Troll Driver rides!
     final windowPaint = Paint()..color = const Color(0xFFFFF9C4);
     final windowFrame = Paint()
       ..color = const Color(0xFFFFD54F)
@@ -833,21 +1051,32 @@ class GameWorldPainter extends CustomPainter {
     canvas.drawRRect(cabWindowRect, windowPaint);
     canvas.drawRRect(cabWindowRect, windowFrame);
 
-    // 2. Boiler & Side Tanks (Thomas Blue with Red Pinstripes)
+    // Troll 10 in the driver's window!
+    final driverTroll = controller.trolls.cast<TrollData?>().firstWhere(
+      (t) => t != null && t.isCollected && t.collectedOrder == 9 && t.collectionProgress >= 1.0,
+      orElse: () => null,
+    );
+    if (driverTroll != null) {
+      canvas.save();
+      canvas.translate(-22, -22);
+      _drawTrollFigure(canvas, driverTroll, scale: 0.42);
+      canvas.restore();
+    }
+
+    // 2. Boiler & Side Tanks
     final boilerRect = Rect.fromLTWH(-6, -38, 32, 26);
     canvas.drawRect(boilerRect, cabPaint);
 
-    // Red Pinstripes on Side Tank
     final stripePaint = Paint()
       ..color = const Color(0xFFD32F2F)
       ..strokeWidth = 2.0;
     canvas.drawLine(const Offset(-5, -36), const Offset(24, -36), stripePaint);
     canvas.drawLine(const Offset(-5, -14), const Offset(24, -14), stripePaint);
 
-    // Iconic Yellow Number "1" on Side Tank!
+    // Number "1"
     _drawNumberOne(canvas, const Offset(10, -25));
 
-    // Brass Dome on Boiler
+    // Brass Dome
     final domePaint = Paint()..color = const Color(0xFFFFD54F);
     final domePath = Path()
       ..moveTo(4, -38)
@@ -855,7 +1084,7 @@ class GameWorldPainter extends CustomPainter {
       ..close();
     canvas.drawPath(domePath, domePaint);
 
-    // 3. Smokebox & Chimney (Dark Slate / Black)
+    // 3. Smokebox & Chimney
     final smokeboxPaint = Paint()..color = const Color(0xFF263238);
     final smokeboxRect = RRect.fromRectAndRadius(
       Rect.fromCenter(center: const Offset(32, -26), width: 20, height: 26),
@@ -863,7 +1092,6 @@ class GameWorldPainter extends CustomPainter {
     );
     canvas.drawRRect(smokeboxRect, smokeboxPaint);
 
-    // Tall Chimney Funnel
     final chimneyPath = Path()
       ..moveTo(27, -38)
       ..lineTo(26, -53)
@@ -871,12 +1099,11 @@ class GameWorldPainter extends CustomPainter {
       ..lineTo(36, -38)
       ..close();
     canvas.drawPath(chimneyPath, smokeboxPaint);
-    // Gold rim on chimney
     canvas.drawLine(const Offset(25, -53), const Offset(38, -53), domePaint..strokeWidth = 2.5);
 
-    // 4. Thomas's Iconic Cheerful Round Face!
+    // 4. Face Plate
     final faceCenter = const Offset(42, -26);
-    final facePaint = Paint()..color = const Color(0xFFECEFF1); // Soft grey face plate
+    final facePaint = Paint()..color = const Color(0xFFECEFF1);
     final faceBorderPaint = Paint()
       ..color = const Color(0xFF90A4AE)
       ..style = PaintingStyle.stroke
@@ -885,17 +1112,15 @@ class GameWorldPainter extends CustomPainter {
     canvas.drawCircle(faceCenter, 13.0, facePaint);
     canvas.drawCircle(faceCenter, 13.0, faceBorderPaint);
 
-    // Big friendly expressive eyes looking ahead!
+    // Eyes
     final eyeWhite = Paint()..color = Colors.white;
     final pupilPaint = Paint()..color = const Color(0xFF1565C0);
     final pupilBlack = Paint()..color = const Color(0xFF212121);
     final eyeGleam = Paint()..color = Colors.white;
 
-    // Left & Right Eyes
     canvas.drawOval(Rect.fromCenter(center: faceCenter + const Offset(-4, -3), width: 6.5, height: 7.5), eyeWhite);
     canvas.drawOval(Rect.fromCenter(center: faceCenter + const Offset(4, -3), width: 6.5, height: 7.5), eyeWhite);
 
-    // Pupils looking eagerly forward
     canvas.drawCircle(faceCenter + const Offset(-2.8, -3), 2.2, pupilPaint);
     canvas.drawCircle(faceCenter + const Offset(5.2, -3), 2.2, pupilPaint);
     canvas.drawCircle(faceCenter + const Offset(-2.8, -3), 1.2, pupilBlack);
@@ -903,7 +1128,6 @@ class GameWorldPainter extends CustomPainter {
     canvas.drawCircle(faceCenter + const Offset(-3.2, -4), 0.8, eyeGleam);
     canvas.drawCircle(faceCenter + const Offset(4.8, -4), 0.8, eyeGleam);
 
-    // Eyebrows
     final browPaint = Paint()
       ..color = const Color(0xFF455A64)
       ..style = PaintingStyle.stroke
@@ -912,15 +1136,12 @@ class GameWorldPainter extends CustomPainter {
     canvas.drawArc(Rect.fromCenter(center: faceCenter + const Offset(-4, -7), width: 6, height: 3), 0.3, math.pi - 0.6, false, browPaint);
     canvas.drawArc(Rect.fromCenter(center: faceCenter + const Offset(4, -7), width: 6, height: 3), 0.3, math.pi - 0.6, false, browPaint);
 
-    // Rosy Cheeks
     final cheekPaint = Paint()..color = const Color(0xFFFF8A80).withValues(alpha: 0.50);
     canvas.drawCircle(faceCenter + const Offset(-8, 1), 3.0, cheekPaint);
     canvas.drawCircle(faceCenter + const Offset(8, 1), 3.0, cheekPaint);
 
-    // Sweet Button Nose
     canvas.drawCircle(faceCenter + const Offset(0, 0), 1.6, Paint()..color = const Color(0xFFB0BEC5));
 
-    // Happy Smiling Mouth
     final mouthPaint = Paint()
       ..color = const Color(0xFFB71C1C)
       ..style = PaintingStyle.fill;
@@ -930,7 +1151,7 @@ class GameWorldPainter extends CustomPainter {
       ..close();
     canvas.drawPath(mouthPath, mouthPaint);
 
-    // 5. Six Rotating Wheels with Counterweights & Connecting Rods!
+    // 5. Wheels & Connecting Rods
     const double wheelR = 10.5;
     final wheelPositions = [
       const Offset(-28, -6),
@@ -942,9 +1163,8 @@ class GameWorldPainter extends CustomPainter {
       _drawWheel(canvas, pos, wheelR, controller.wheelAngle);
     }
 
-    // Side Connecting Rod connecting all 3 wheels
     final rodAngle = controller.wheelAngle;
-    final pinDist = 6.0;
+    const pinDist = 6.0;
     final rodYOffset = math.sin(rodAngle) * pinDist;
     final rodXOffset = math.cos(rodAngle) * pinDist;
 
@@ -963,7 +1183,6 @@ class GameWorldPainter extends CustomPainter {
     canvas.drawLine(pStart, pEnd, rodPaint);
     canvas.drawLine(pStart, pEnd, rodShadow);
 
-    // Rod joint pins
     for (final pos in wheelPositions) {
       canvas.drawCircle(Offset(pos.dx + rodXOffset, pos.dy + rodYOffset), 2.5, Paint()..color = const Color(0xFF37474F));
     }
@@ -972,7 +1191,6 @@ class GameWorldPainter extends CustomPainter {
   }
 
   void _drawNumberOne(Canvas canvas, Offset center) {
-    // Yellow "1" with red drop shadow
     final shadowText = TextPainter(
       text: const TextSpan(
         text: '1',
@@ -1004,8 +1222,7 @@ class GameWorldPainter extends CustomPainter {
   }
 
   void _drawWheel(Canvas canvas, Offset center, double radius, double angle) {
-    // Wheel Rim
-    final rimPaint = Paint()..color = const Color(0xFF1565C0); // Thomas Blue wheel
+    final rimPaint = Paint()..color = const Color(0xFF1565C0);
     final steelTirePaint = Paint()
       ..color = const Color(0xFF90A4AE)
       ..style = PaintingStyle.stroke
@@ -1014,7 +1231,6 @@ class GameWorldPainter extends CustomPainter {
     canvas.drawCircle(center, radius, rimPaint);
     canvas.drawCircle(center, radius, steelTirePaint);
 
-    // Counterweight
     final cwPaint = Paint()..color = const Color(0xFF0D47A1);
     final cwPath = Path()
       ..arcTo(
@@ -1027,7 +1243,6 @@ class GameWorldPainter extends CustomPainter {
       ..close();
     canvas.drawPath(cwPath, cwPaint);
 
-    // Spokes
     final spokePaint = Paint()
       ..color = const Color(0xFF42A5F5)
       ..strokeWidth = 1.5;
@@ -1040,7 +1255,6 @@ class GameWorldPainter extends CustomPainter {
       );
     }
 
-    // Hub cap
     canvas.drawCircle(center, 3.2, Paint()..color = const Color(0xFF263238));
   }
 
@@ -1061,7 +1275,6 @@ class GameWorldPainter extends CustomPainter {
       canvas.translate(p.x, p.y);
       canvas.rotate(p.rotation);
 
-      // Four-point star
       final r = p.size;
       final starPath = Path()
         ..moveTo(0, -r)
@@ -1076,14 +1289,32 @@ class GameWorldPainter extends CustomPainter {
     }
   }
 
+  void _drawConfetti(Canvas canvas) {
+    for (final p in controller.confettiParticles) {
+      final paint = Paint()..color = p.color;
+
+      canvas.save();
+      canvas.translate(p.x, p.y);
+      canvas.rotate(p.rotation);
+
+      final rect = Rect.fromCenter(
+        center: Offset.zero,
+        width: p.width,
+        height: p.height,
+      );
+      canvas.drawRect(rect, paint);
+
+      canvas.restore();
+    }
+  }
+
   void _drawTouchGuide(Canvas canvas, double width, double height) {
-    if (!controller.touchActive || controller.touchPosition == null) return;
+    if (!controller.touchActive || controller.touchPosition == null || controller.hasWon) return;
 
     final touchPos = controller.touchPosition!;
     final trackEndX = controller.track.endX;
     final trackEndY = controller.track.endY;
 
-    // Glowing finger touch sparkle
     final touchGlowPaint = Paint()
       ..color = const Color(0x66FFEB3B)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12.0);
@@ -1095,7 +1326,6 @@ class GameWorldPainter extends CustomPainter {
       ..strokeWidth = 2.5;
     canvas.drawCircle(touchPos, 14.0, touchRingPaint);
 
-    // Dashed guide curve from track end aiming towards touch height
     final guidePaint = Paint()
       ..color = const Color(0xFFFFEB3B).withValues(alpha: 0.70)
       ..strokeWidth = 2.5

@@ -10,12 +10,14 @@ class GameController extends ChangeNotifier {
   final List<TrollData> trolls = [];
   final List<SmokeParticle> smokeParticles = [];
   final List<SparkleParticle> sparkleParticles = [];
+  final List<ConfettiParticle> confettiParticles = [];
 
   // Physics constants
   static const double maxSpeed = 260.0; // px/sec
   static const double acceleration = 220.0; // px/sec^2 (~1.2s to max speed)
   static const double deceleration = 180.0; // px/sec^2 (~1.4s to stop)
   static const double wheelRadius = 14.0;
+  static const int totalTrollsToWin = 10;
 
   double trainSpeed = 0.0;
   double wheelAngle = 0.0;
@@ -29,18 +31,37 @@ class GameController extends ChangeNotifier {
   double parallaxHills = 0.0;
 
   double _smokeTimer = 0.0;
+  double _confettiTimer = 0.0;
   double _nextTrollSpawnX = 600.0;
   final math.Random _random = math.Random();
 
   int collectedTrollsCount = 0;
   bool isInitialized = false;
 
+  // Troll Village & Win State
+  bool hasWon = false;
+  bool villageStationReached = false;
+  double? villageX;
+
   double screenWidth = 800.0;
   double screenHeight = 400.0;
 
-  // Train screen anchor
-  double get trainX => math.max(140.0, screenWidth * 0.22);
-  double get carriageX => trainX - 78.0;
+  // Thomas screen anchor: positioned to comfortably fit 3 carts behind him
+  double get trainX => math.max(230.0, screenWidth * 0.32);
+
+  // Cart positions (3 carts pulled behind Thomas)
+  double getCartX(int cartIndex) {
+    switch (cartIndex) {
+      case 0:
+        return trainX - 58.0;
+      case 1:
+        return trainX - 116.0;
+      case 2:
+        return trainX - 174.0;
+      default:
+        return trainX - 58.0;
+    }
+  }
 
   void initialize(double width, double height) {
     screenWidth = width;
@@ -52,22 +73,33 @@ class GameController extends ChangeNotifier {
     trolls.clear();
     smokeParticles.clear();
     sparkleParticles.clear();
+    confettiParticles.clear();
 
-    // Spawn first troll ahead on the track
-    _nextTrollSpawnX = width * 0.8;
+    collectedTrollsCount = 0;
+    hasWon = false;
+    villageStationReached = false;
+    villageX = null;
+    trainSpeed = 0.0;
+    totalDistance = 0.0;
+    wheelAngle = 0.0;
+
+    // Spawn first troll ahead at a fun reachable height
+    _nextTrollSpawnX = width * 0.75;
     trolls.add(
       TrollData(
         x: _nextTrollSpawnX,
+        y: initialY - 30.0,
         type: TrollType.poppy,
       ),
     );
-    _nextTrollSpawnX += 700.0;
+    _nextTrollSpawnX += 520.0;
 
     isInitialized = true;
     notifyListeners();
   }
 
   void onPointerDown(Offset position) {
+    if (villageStationReached) return;
     touchActive = true;
     touchPosition = position;
     notifyListeners();
@@ -92,7 +124,16 @@ class GameController extends ChangeNotifier {
     final clampedDt = dt.clamp(0.001, 0.05);
 
     // 1. Accelerate or Decelerate
-    if (touchActive) {
+    if (villageStationReached) {
+      trainSpeed = 0.0;
+    } else if (hasWon && villageX != null && villageX! <= trainX + 160.0) {
+      // Auto-brake into Troll Village station
+      trainSpeed = (trainSpeed - deceleration * 1.5 * clampedDt).clamp(0.0, maxSpeed);
+      if (villageX! <= trainX + 80.0 || trainSpeed < 10.0) {
+        trainSpeed = 0.0;
+        villageStationReached = true;
+      }
+    } else if (touchActive) {
       trainSpeed = (trainSpeed + acceleration * clampedDt).clamp(0.0, maxSpeed);
     } else {
       trainSpeed = (trainSpeed - deceleration * clampedDt).clamp(0.0, maxSpeed);
@@ -107,6 +148,10 @@ class GameController extends ChangeNotifier {
 
       parallaxMountains += dx * 0.08;
       parallaxHills += dx * 0.25;
+
+      if (villageX != null) {
+        villageX = villageX! - dx;
+      }
     }
 
     // Clouds drift slowly on their own + with motion
@@ -117,46 +162,66 @@ class GameController extends ChangeNotifier {
       dx: dx,
       screenWidth: screenWidth,
       screenHeight: screenHeight,
-      isTouching: touchActive,
+      isTouching: touchActive && !hasWon,
       touchY: touchPosition?.dy,
     );
 
     // 4. Update trolls
+    final double trainY = track.getHeightAt(trainX);
+
     for (int i = trolls.length - 1; i >= 0; i--) {
       final troll = trolls[i];
       troll.update(clampedDt, dx);
 
-      // Check collision with train
+      // Check collision with Thomas
       if (!troll.isCollected) {
-        final double trollTrackY = track.getHeightAt(troll.x);
-        final double trainFrontX = trainX + 35.0;
+        final double trainFront = trainX + 35.0;
+        final double trainBack = trainX - 35.0;
 
-        if (troll.x <= trainFrontX && troll.x >= trainX - 45.0) {
-          troll.isCollected = true;
-          collectedTrollsCount++;
+        // Troll reached the train horizontally
+        if (troll.x <= trainFront && troll.x >= trainBack) {
+          // Check vertical alignment: train track height vs troll height
+          final double vertDiff = (trainY - troll.y).abs();
+          if (vertDiff <= 44.0) {
+            // Picked up!
+            troll.isCollected = true;
+            troll.collectedOrder = collectedTrollsCount;
+            collectedTrollsCount++;
 
-          // Burst of sparkles!
-          _spawnSparkles(troll.x, trollTrackY - 20.0, troll.hairColor);
+            // Burst of celebration sparkles!
+            _spawnSparkles(troll.x, troll.y, troll.hairColor);
+
+            if (collectedTrollsCount >= totalTrollsToWin) {
+              _triggerVictory();
+            }
+          }
         }
       }
 
       // Cull off-screen trolls
-      if (troll.x < -200.0) {
+      if (troll.x < -220.0) {
         trolls.removeAt(i);
       }
     }
 
-    // 5. Spawn new trolls
-    if (track.endX > _nextTrollSpawnX) {
+    // 5. Spawn new trolls at diverse vertical heights until 10 collected
+    if (!hasWon && collectedTrollsCount < totalTrollsToWin && track.endX > _nextTrollSpawnX) {
       final types = TrollType.values;
       final type = types[_random.nextInt(types.length)];
+
+      // Pick a diverse height (sky, high hill, mid hill, low valley)
+      final minY = 115.0;
+      final maxY = screenHeight - 75.0;
+      final spawnY = minY + _random.nextDouble() * (maxY - minY);
+
       trolls.add(
         TrollData(
           x: _nextTrollSpawnX,
+          y: spawnY,
           type: type,
         ),
       );
-      _nextTrollSpawnX = track.endX + 600.0 + _random.nextDouble() * 500.0;
+      _nextTrollSpawnX = track.endX + 460.0 + _random.nextDouble() * 320.0;
     }
 
     // 6. Spawn smoke puffs from chimney
@@ -169,20 +234,32 @@ class GameController extends ChangeNotifier {
       }
     }
 
-    // 7. Update smoke particles
-    smokeParticles.removeWhere((p) => !p.update(clampedDt));
+    // 7. Victory Confetti Celebration
+    if (hasWon) {
+      _confettiTimer += clampedDt;
+      if (_confettiTimer >= 0.04) {
+        _confettiTimer = 0.0;
+        _spawnConfetti();
+      }
+    }
 
-    // 8. Update sparkle particles
+    // 8. Update particles
+    smokeParticles.removeWhere((p) => !p.update(clampedDt));
     sparkleParticles.removeWhere((p) => !p.update(clampedDt));
+    confettiParticles.removeWhere((p) => !p.update(clampedDt, screenHeight));
 
     notifyListeners();
+  }
+
+  void _triggerVictory() {
+    hasWon = true;
+    villageX = screenWidth + 250.0;
   }
 
   void _spawnSmokePuff() {
     final double trainY = track.getHeightAt(trainX);
     final double angle = track.getAngleAt(trainX);
 
-    // Chimney offset relative to train center: front + upward
     final double chimneyDistX = 22.0;
     final double chimneyDistY = -38.0;
 
@@ -204,9 +281,9 @@ class GameController extends ChangeNotifier {
   }
 
   void _spawnSparkles(double x, double y, Color mainColor) {
-    for (int i = 0; i < 22; i++) {
+    for (int i = 0; i < 24; i++) {
       final double angle = _random.nextDouble() * 2 * math.pi;
-      final double speed = 40.0 + _random.nextDouble() * 140.0;
+      final double speed = 40.0 + _random.nextDouble() * 150.0;
       final Color color = _random.nextBool()
           ? mainColor
           : (_random.nextBool() ? const Color(0xFFFFD700) : Colors.white);
@@ -218,8 +295,36 @@ class GameController extends ChangeNotifier {
           vx: math.cos(angle) * speed,
           vy: math.sin(angle) * speed - 40.0,
           color: color,
-          size: 4.0 + _random.nextDouble() * 5.0,
+          size: 4.0 + _random.nextDouble() * 6.0,
           vRot: (_random.nextDouble() - 0.5) * 8.0,
+        ),
+      );
+    }
+  }
+
+  void _spawnConfetti() {
+    const colors = [
+      Color(0xFFFF1493), // Hot pink
+      Color(0xFF00E5FF), // Cyan
+      Color(0xFFFFD700), // Gold
+      Color(0xFF76FF03), // Lime
+      Color(0xFFFF6D00), // Orange
+      Color(0xFFE040FB), // Magenta
+      Color(0xFF00E676), // Green
+    ];
+
+    for (int i = 0; i < 3; i++) {
+      confettiParticles.add(
+        ConfettiParticle(
+          x: _random.nextDouble() * screenWidth,
+          y: -15.0,
+          vx: (_random.nextDouble() - 0.5) * 40.0,
+          vy: 90.0 + _random.nextDouble() * 110.0,
+          rotation: _random.nextDouble() * 2 * math.pi,
+          vRot: (_random.nextDouble() - 0.5) * 6.0,
+          color: colors[_random.nextInt(colors.length)],
+          width: 7.0 + _random.nextDouble() * 6.0,
+          height: 5.0 + _random.nextDouble() * 4.0,
         ),
       );
     }

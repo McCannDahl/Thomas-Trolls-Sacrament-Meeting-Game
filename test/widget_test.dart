@@ -1,4 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:thomas_trolls/game/game_controller.dart';
+import 'package:thomas_trolls/game/models/troll_data.dart';
 import 'package:thomas_trolls/main.dart';
 
 void main() {
@@ -29,5 +31,26 @@ void main() {
     // Tap restart button
     await tester.tap(find.text('Restart'));
     await tester.pump();
+  });
+
+  testWidgets('shows victory celebration when arriving at Troll Village', (WidgetTester tester) async {
+    final testController = GameController();
+    testController.initialize(800, 400);
+
+    for (int i = 0; i < 10; i++) {
+      final t = TrollData(
+        x: testController.trainX,
+        y: testController.track.getHeightAt(testController.trainX),
+        type: TrollType.poppy,
+      );
+      testController.trolls.clear();
+      testController.trolls.add(t);
+      testController.onPointerDown(const Offset(400, 200));
+      testController.update(0.1);
+    }
+
+    expect(testController.hasWon, isTrue);
+    expect(testController.collectedTrollsCount, equals(10));
+    expect(testController.villageX, isNotNull);
   });
 }

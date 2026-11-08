@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 /// A smoke puff puffing out of Thomas's funnel.
@@ -69,4 +70,39 @@ class SparkleParticle {
 
   double get progress => (age / maxAge).clamp(0.0, 1.0);
   double get currentAlpha => (1.0 - progress).clamp(0.0, 1.0);
+}
+
+/// A colorful fluttering piece of confetti when arriving at Troll Village.
+class ConfettiParticle {
+  double x;
+  double y;
+  double vx;
+  double vy;
+  double rotation;
+  double vRot;
+  final Color color;
+  final double width;
+  final double height;
+  double wobblePhase;
+
+  ConfettiParticle({
+    required this.x,
+    required this.y,
+    required this.vx,
+    required this.vy,
+    required this.rotation,
+    required this.vRot,
+    required this.color,
+    required this.width,
+    required this.height,
+    this.wobblePhase = 0.0,
+  });
+
+  bool update(double dt, double screenHeight) {
+    wobblePhase += dt * 4.0;
+    x += (vx + math.sin(wobblePhase) * 20.0) * dt;
+    y += vy * dt;
+    rotation += vRot * dt;
+    return y < screenHeight + 40.0;
+  }
 }

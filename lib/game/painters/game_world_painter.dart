@@ -499,18 +499,26 @@ class GameWorldPainter extends CustomPainter {
       canvas.drawPath(flagPath, Paint()..color = fColor);
     }
 
-    // 4. Village Station Signboard
+    // 4. Village Station Signboard on platform posts (placed low so it doesn't block cocoons)
+    final signCenter = Offset(vx - 5, vy - 24);
     final signBg = RRect.fromRectAndRadius(
-      Rect.fromCenter(center: Offset(vx + 110, vy - 68), width: 140, height: 26),
-      const Radius.circular(8),
+      Rect.fromCenter(center: signCenter, width: 110, height: 18),
+      const Radius.circular(5),
     );
+
+    final postPaint = Paint()
+      ..color = const Color(0xFF4E342E)
+      ..strokeWidth = 2.5;
+    canvas.drawLine(Offset(vx - 45, vy - 4), Offset(vx - 45, vy - 24), postPaint);
+    canvas.drawLine(Offset(vx + 35, vy - 4), Offset(vx + 35, vy - 24), postPaint);
+
     canvas.drawRRect(signBg, Paint()..color = const Color(0xFF880E4F));
     canvas.drawRRect(
       signBg,
       Paint()
         ..color = const Color(0xFFFFD54F)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.0,
+        ..strokeWidth = 1.4,
     );
 
     final signText = TextPainter(
@@ -518,14 +526,14 @@ class GameWorldPainter extends CustomPainter {
         text: '🌸 TROLL VILLAGE 🌸',
         style: TextStyle(
           color: Colors.white,
-          fontSize: 11.5,
+          fontSize: 9.0,
           fontWeight: FontWeight.w900,
           fontFamily: 'sans-serif',
         ),
       ),
       textDirection: TextDirection.ltr,
     )..layout();
-    signText.paint(canvas, Offset(vx + 110 - signText.width / 2, vy - 75));
+    signText.paint(canvas, Offset(signCenter.dx - signText.width / 2, signCenter.dy - signText.height / 2));
   }
 
   void _drawCocoonPod(
